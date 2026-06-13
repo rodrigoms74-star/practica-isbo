@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Práctica Docente — ISBO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f3; --bg3: #ebebea;
+    --text: #1a1a18; --text2: #6b6b68; --text3: #9b9b98;
+    --border: rgba(0,0,0,0.10); --border2: rgba(0,0,0,0.18);
+    --blue: #378ADD; --blue-l: #E6F1FB; --blue-d: #0C447C;
+    --green: #639922; --green-l: #EAF3DE; --green-d: #27500A;
+    --purple: #7F77DD; --purple-l: #EEEDFE; --purple-d: #3C3489;
+    --red: #E24B4A; --red-l: #FCEBEB; --red-d: #791F1F;
+    --amber: #BA7517; --amber-l: #FAEEDA; --amber-d: #633806;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+      --text: #f0efeb; --text2: #a0a09c; --text3: #686864;
+      --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
+      --blue-l: #042C53; --blue-d: #B5D4F4;
+      --green-l: #173404; --green-d: #C0DD97;
+      --purple-l: #26215C; --purple-d: #CECBF6;
+      --red-l: #501313; --red-d: #F7C1C1;
+      --amber-l: #412402; --amber-d: #FAC775;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  .header { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .header-title { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  .header-title svg { color: var(--blue); }
+  .header-meta { font-size: 12px; color: var(--text2); }
+  .badge-modo { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 500; }
+  .badge-editor { background: var(--blue-l); color: var(--blue-d); }
+  .badge-vista { background: var(--green-l); color: var(--green-d); }
+
+  /* LAYOUT */
+  .container { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+  /* LOGIN / MODO */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
+  .modal { background: var(--bg); border-radius: var(--radius-lg); padding: 2rem; width: 340px; }
+  .modal h2 { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+  .modal p { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; line-height: 1.5; }
+  .modal-btn { width: 100%; padding: 10px; font-size: 14px; font-weight: 500; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); cursor: pointer; margin-bottom: 8px; text-align: left; display: flex; align-items: center; gap: 10px; transition: background .15s; }
+  .modal-btn:hover { background: var(--bg2); }
+  .modal-btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .modal-btn-primary:hover { opacity: .88; background: var(--text); }
+  .pin-form { margin-top: 8px; }
+  .pin-input { width: 100%; padding: 10px; font-size: 15px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); letter-spacing: .2em; text-align: center; margin-bottom: 8px; }
+  .pin-input:focus { outline: none; border-color: var(--blue); }
+  .pin-error { font-size: 12px; color: var(--red); margin-bottom: 6px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 2px; margin-bottom: 1.5rem; background: var(--bg2); border-radius: var(--radius-lg); padding: 4px; }
+  .tab { flex: 1; padding: 8px 4px; font-size: 13px; font-weight: 500; color: var(--text2); background: none; border: none; border-radius: var(--radius); cursor: pointer; text-align: center; transition: background .15s, color .15s; }
+  .tab.active { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .tab:disabled { opacity: .4; cursor: not-allowed; }
+  .panel { display: none; } .panel.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 13px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 1rem; display: flex; align-items: center; gap: 6px; }
+
+  /* METRICS */
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+  .metric { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; }
+  .metric-label { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+  .metric-val { font-size: 26px; font-weight: 500; color: var(--text); line-height: 1; }
+  .metric-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .prog-bar { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .prog-fill { height: 100%; border-radius: 3px; }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--text2); }
+  .field input, .field select, .field textarea { font-size: 13px; padding: 8px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); transition: border .15s; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--blue); }
+  .field textarea { min-height: 64px; resize: vertical; }
+  .field-full { grid-column: 1 / -1; }
+
+  /* BUTTONS */
+  .btn { padding: 8px 18px; font-size: 13px; font-weight: 500; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); cursor: pointer; transition: background .15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: var(--bg2); }
+  .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn-primary:hover { opacity: .88; }
+  .btn-danger { border-color: var(--red); color: var(--red-d); }
+  .btn-danger:hover { background: var(--red-l); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-icon { width: 32px; height: 32px; padding: 0; justify-content: center; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; font-weight: 500; color: var(--text2); padding: 8px 10px; border-bottom: 0.5px solid var(--border); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 0.5px solid var(--border); color: var(--text); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg2); }
+
+  /* BADGE */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .b-yo { background: var(--blue-l); color: var(--blue-d); }
+  .b-ads { background: var(--green-l); color: var(--green-d); }
+  .b-amb { background: var(--purple-l); color: var(--purple-d); }
+  .b-pres { background: var(--green-l); color: var(--green-d); }
+  .b-aus { background: var(--red-l); color: var(--red-d); }
+
+  /* ASISTENCIA GRID */
+  .asist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+  .asist-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg2); border-radius: var(--radius); }
+  .asist-btn { width: 32px; height: 32px; border-radius: 50%; border: 0.5px solid var(--border2); background: var(--bg); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s; }
+  .asist-btn.pres { background: var(--green-l); border-color: var(--green); color: var(--green-d); }
+  .asist-btn.aus { background: var(--red-l); border-color: var(--red); color: var(--red-d); }
+  .asist-name { font-size: 13px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .asist-controls { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem; }
+
+  /* ALERT */
+  .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 1rem; border: 0.5px solid var(--border); background: var(--bg2); color: var(--text2); line-height: 1.5; }
+  .alert-success { background: var(--green-l); color: var(--green-d); border-color: transparent; }
+  .alert-danger { background: var(--red-l); color: var(--red-d); border-color: transparent; }
+
+  /* CHART */
+  .chart-wrap { position: relative; width: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; font-size: 12px; color: var(--text2); }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-sq { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* CHARTS GRID */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 600px) { .charts-grid { grid-template-columns: 1fr; } .form-grid { grid-template-columns: 1fr; } .form-grid-3 { grid-template-columns: 1fr; } }
+
+  /* EXPORT/IMPORT */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 2rem; color: var(--text3); font-size: 14px; }
+
+  /* PIN change */
+  .pin-section { background: var(--bg2); border-radius: var(--radius); padding: 1rem; margin-top: 1rem; }
+  .pin-section h3 { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--bg3); color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="modal-login">
+  <div class="modal">
+    <h2>Práctica docente — ISBO</h2>
+    <p>¿Cómo querés acceder?</p>
+    <button class="modal-btn" onclick="accederVista()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Ver dashboard (sin editar)
+    </button>
+    <button class="modal-btn modal-btn-primary" onclick="mostrarPin()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+      Ingresar datos (practicante)
+    </button>
+    <div class="pin-form" id="pin-form" style="display:none">
+      <input type="password" class="pin-input" id="pin-input" placeholder="PIN" maxlength="8" onkeydown="if(event.key==='Enter')verificarPin()">
+      <div class="pin-error" id="pin-error"></div>
+      <button class="modal-btn modal-btn-primary" onclick="verificarPin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-title">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"/></svg>
+    Práctica Docente — ISBO
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="header-meta" id="header-info"></span>
+    <span class="badge-modo badge-vista" id="badge-modo">Vista</span>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="container">
+  <div class="tabs" id="tabs">
+    <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+    <button class="tab" onclick="showTab('historial')">Historial</button>
+    <button class="tab" id="tab-registro" onclick="showTab('registro')" disabled>Registrar clase</button>
+    <button class="tab" id="tab-asistencia" onclick="showTab('asistencia')" disabled>Asistencia</button>
+    <button class="tab" id="tab-config" onclick="showTab('config')" disabled>Ajustes</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="panel-dashboard" class="panel active">
+    <div class="metric-grid" id="metrics"></div>
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title">Clases por docente</div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-sq" style="background:#378ADD"></span>Yo</div>
+          <div class="legend-item"><span class="legend-sq" style="background:#639922"></span>Adscriptor</div>
+          <div class="legend-item"><span class="legend-sq" style="background:#7F77DD"></span>Ambos</div>
+        </div>
+        <div class="chart-wrap" style="height:200px"><canvas id="ch-docente" role="img" aria-label="Gráfico de torta: clases dictadas por el practicante, el adscriptor y ambos">Distribución de clases por docente.</canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Asistencia del practicante</div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-sq" style="background:#639922"></span>Presente</div>
+          <div class="legend-item"><span class="legend-sq" style="background:#E24B4A"></span>Ausente</div>
+        </div>
+        <div class="chart-wrap" style="height:200px"><canvas id="ch-asist-prac" role="img" aria-label="Gráfico de torta: asistencia del practicante">Asistencia del practicante al ISBO.</canvas></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">Asistencia de estudiantes por clase</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="ch-alumnos" role="img" aria-label="Gráfico de barras: estudiantes presentes por clase">Asistencia de estudiantes por clase.</canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Horas de práctica acumuladas</div>
+      <div class="chart-wrap" style="height:180px"><canvas id="ch-horas" role="img" aria-label="Gráfico de línea: horas acumuladas de práctica">Horas acumuladas de práctica docente.</canvas></div>
+    </div>
+    <div class="card" id="card-temas">
+      <div class="card-title">Temas dictados</div>
+      <div id="lista-temas"></div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div id="panel-historial" class="panel">
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Fecha</th><th>Quién</th><th>Tema</th>
+            <th>Presentes</th><th>Mi asistencia</th><th>Horas</th><th>Observaciones</th>
+          </tr></thead>
+          <tbody id="tbody-historial"></tbody>
+        </table>
+        <div class="empty" id="empty-hist" style="display:none">Aún no hay clases registradas.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTRO (solo editor) -->
+  <div id="panel-registro" class="panel">
+    <div class="card">
+      <div class="card-title">Nueva clase / editar</div>
+      <div class="form-grid">
+        <div class="field"><label>Fecha</label><input type="date" id="r-fecha"></div>
+        <div class="field"><label>N° de clase (1–32)</label><input type="number" id="r-num" min="1" max="32" placeholder="Ej: 5"></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>¿Quién dictó?</label>
+          <select id="r-quien">
+            <option value="yo">Yo (practicante)</option>
+            <option value="adscriptor">Docente adscriptor</option>
+            <option value="ambos">Ambos</option>
+          </select>
+        </div>
+        <div class="field"><label>Duración (minutos)</label><input type="number" id="r-min" min="30" max="300" value="90"></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Mi asistencia</label>
+          <select id="r-asist">
+            <option value="presente">Presente</option>
+            <option value="justificada">Ausente justificado</option>
+            <option value="ausente">Ausente sin justificar</option>
+          </select>
+        </div>
+        <div class="field"><label>Estudiantes presentes (de 25)</label><input type="number" id="r-presentes" min="0" max="25" placeholder="0–25"></div>
+      </div>
+      <div class="field" style="margin-bottom:12px"><label>Tema dictado</label><input type="text" id="r-tema" placeholder="Ej: Introducción a árboles de decisión"></div>
+      <div class="field" style="margin-bottom:16px"><label>Observaciones del adscriptor</label><textarea id="r-obs" placeholder="Comentarios, devoluciones, sugerencias..."></textarea></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="guardarClase()">Guardar clase</button>
+        <button class="btn" onclick="limpiarForm()">Limpiar</button>
+        <span id="r-msg" style="font-size:13px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ASISTENCIA (solo editor) -->
+  <div id="panel-asistencia" class="panel">
+    <div class="card">
+      <div class="asist-controls">
+        <div class="field"><label>Seleccioná la clase</label>
+          <select id="a-sel" style="width:160px" onchange="renderAsistencia()"></select>
+        </div>
+        <button class="btn btn-sm" onclick="marcarTodos(true)">✓ Todos presentes</button>
+        <button class="btn btn-sm" onclick="marcarTodos(false)">✗ Todos ausentes</button>
+      </div>
+      <div class="asist-grid" id="asist-grid"></div>
+      <div class="empty" id="asist-empty">Primero registrá al menos una clase.</div>
+    </div>
+  </div>
+
+  <!-- CONFIG (solo editor) -->
+  <div id="panel-config" class="panel">
+    <div class="card">
+      <div class="card-title">Exportar e importar datos</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:1rem;line-height:1.6">Exportá los datos como archivo JSON para hacer una copia de seguridad o para restaurarlos en otro dispositivo.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="exportarDatos()">Exportar JSON</button>
+        <button class="btn" onclick="document.getElementById('import-file').click()">Importar JSON</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="importarDatos(event)">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Cambiar PIN</div>
+      <div class="form-grid" style="max-width:360px">
+        <div class="field"><label>PIN actual</label><input type="password" id="pin-actual" maxlength="8"></div>
+        <div class="field"><label>PIN nuevo</label><input type="password" id="pin-nuevo" maxlength="8"></div>
+      </div>
+      <button class="btn btn-primary" onclick="cambiarPin()">Actualizar PIN</button>
+      <span id="pin-msg" style="font-size:13px;margin-left:10px"></span>
+    </div>
+    <div class="card">
+      <div class="card-title">Editar nombres de estudiantes</div>
+      <div id="nombres-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:1rem"></div>
+      <button class="btn btn-primary" onclick="guardarNombres()">Guardar nombres</button>
+      <span id="nombres-msg" style="font-size:13px;margin-left:10px"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOTAL_CLASES = 32;
+const TOTAL_ALUMNOS = 25;
+const PIN_KEY = 'isbo_pin';
+const DEFAULT_PIN = '1234';
+
+let modoEditor = false;
+let clases = [], asistencias = {}, alumnos = [];
+let charts = {};
+
+function cargarDatos() {
+  clases = JSON.parse(localStorage.getItem('isbo_clases') || '[]');
+  asistencias = JSON.parse(localStorage.getItem('isbo_asist') || '{}');
+  alumnos = JSON.parse(localStorage.getItem('isbo_alumnos') || 'null');
+  if (!alumnos) {
+    alumnos = Array.from({length: TOTAL_ALUMNOS}, (_, i) => ({id: i+1, nombre: 'Estudiante ' + (i+1)}));
+    localStorage.setItem('isbo_alumnos', JSON.stringify(alumnos));
+  }
+}
+
+function guardarStorage() {
+  localStorage.setItem('isbo_clases', JSON.stringify(clases));
+  localStorage.setItem('isbo_asist', JSON.stringify(asistencias));
+  localStorage.setItem('isbo_alumnos', JSON.stringify(alumnos));
+}
+
+function getPin() { return localStorage.getItem(PIN_KEY) || DEFAULT_PIN; }
+
+function mostrarPin() {
+  document.getElementById('pin-form').style.display = 'block';
+  document.getElementById('pin-input').focus();
+}
+
+function verificarPin() {
+  const val = document.getElementById('pin-input').value;
+  if (val === getPin()) {
+    modoEditor = true;
+    cerrarModal();
+    activarModoEditor();
+  } else {
+    document.getElementById('pin-error').textContent = 'PIN incorrecto. Intentá de nuevo.';
+    document.getElementById('pin-input').value = '';
+  }
+}
+
+function accederVista() {
+  modoEditor = false;
+  cerrarModal();
+}
+
+function cerrarModal() {
+  document.getElementById('modal-login').style.display = 'none';
+  cargarDatos();
+  renderDashboard();
+  renderHistorial();
+  document.getElementById('badge-modo').textContent = modoEditor ? 'Editando' : 'Vista';
+  document.getElementById('badge-modo').className = 'badge-modo ' + (modoEditor ? 'badge-editor' : 'badge-vista');
+  document.getElementById('header-info').textContent = 'ISBO · ' + new Date().getFullYear();
+}
+
+function activarModoEditor() {
+  ['tab-registro','tab-asistencia','tab-config'].forEach(id => document.getElementById(id).disabled = false);
+  renderNombres();
+  cargarAsistenciaSelect();
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['dashboard','historial','registro','asistencia','config'][i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'historial') renderHistorial();
+  if (name === 'asistencia') cargarAsistenciaSelect();
+  if (name === 'config') renderNombres();
+}
+
+function limpiarForm() {
+  document.getElementById('r-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('r-num').value = '';
+  document.getElementById('r-tema').value = '';
+  document.getElementById('r-obs').value = '';
+  document.getElementById('r-presentes').value = '';
+  document.getElementById('r-min').value = 90;
+  document.getElementById('r-quien').value = 'yo';
+  document.getElementById('r-asist').value = 'presente';
+  document.getElementById('r-msg').textContent = '';
+}
+
+function guardarClase() {
+  const fecha = document.getElementById('r-fecha').value;
+  const num = parseInt(document.getElementById('r-num').value);
+  const quien = document.getElementById('r-quien').value;
+  const min = parseInt(document.getElementById('r-min').value) || 90;
+  const tema = document.getElementById('r-tema').value.trim();
+  const presentes = parseInt(document.getElementById('r-presentes').value) || 0;
+  const asistPrac = document.getElementById('r-asist').value;
+  const obs = document.getElementById('r-obs').value.trim();
+  const msg = document.getElementById('r-msg');
+  if (!fecha || !num || !tema) {
+    msg.style.color = 'var(--red)'; msg.textContent = 'Completá fecha, número y tema.'; return;
+  }
+  const obj = {fecha, num, quien, min, tema, presentes, asistPrac, obs};
+  const idx = clases.findIndex(c => c.num === num);
+  if (idx >= 0) clases[idx] = obj; else clases.push(obj);
+  clases.sort((a,b) => a.num - b.num);
+  guardarStorage();
+  msg.style.color = 'var(--green-d)'; msg.textContent = 'Clase ' + num + ' guardada correctamente.';
+  setTimeout(() => { msg.textContent = ''; limpiarForm(); }, 2000);
+}
+
+document.getElementById('r-fecha').value = new Date().toISOString().split('T')[0];
+
+function renderDashboard() {
+  const yo = clases.filter(c=>c.quien==='yo').length;
+  const ads = clases.filter(c=>c.quien==='adscriptor').length;
+  const amb = clases.filter(c=>c.quien==='ambos').length;
+  const total = clases.length;
+  const pct = Math.round((total/TOTAL_CLASES)*100);
+  const horas = Math.round(clases.reduce((s,c)=>s+(c.min||90),0)/60*10)/10;
+  const presente = clases.filter(c=>c.asistPrac==='presente').length;
+  const ausente = clases.filter(c=>c.asistPrac!=='presente').length;
+  const avgPres = total>0 ? Math.round(clases.reduce((s,c)=>s+(c.presentes||0),0)/total) : 0;
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Clases dictadas por mí</div><div class="metric-val">${yo+amb}</div><div class="metric-sub">de ${TOTAL_CLASES} programadas</div></div>
+    <div class="metric"><div class="metric-label">Clases del adscriptor</div><div class="metric-val">${ads+amb}</div><div class="metric-sub">dictadas en total</div></div>
+    <div class="metric"><div class="metric-label">Mi asistencia al ISBO</div><div class="metric-val">${presente}</div><div class="metric-sub">${ausente} ausencia${ausente!==1?'s':''} registrada${ausente!==1?'s':''}</div></div>
+    <div class="metric"><div class="metric-label">Promedio de estudiantes</div><div class="metric-val">${avgPres}</div><div class="metric-sub">de ${TOTAL_ALUMNOS} en el grupo</div></div>
+    <div class="metric"><div class="metric-label">Horas de práctica</div><div class="metric-val">${horas}</div><div class="metric-sub">horas acumuladas</div></div>
+    <div class="metric"><div class="metric-label">Avance del curso</div><div class="metric-val">${pct}%</div><div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:var(--blue)"></div></div><div class="metric-sub">${total} de ${TOTAL_CLASES} clases</div></div>
+  `;
+
+  ['ch-docente','ch-asist-prac','ch-alumnos','ch-horas'].forEach(id => { if(charts[id]){charts[id].destroy();delete charts[id];} });
+
+  if (total === 0) {
+    document.getElementById('lista-temas').innerHTML = '<p class="empty">Registrá clases para ver los temas.</p>';
+    return;
+  }
+
+  charts['ch-docente'] = new Chart(document.getElementById('ch-docente'), {
+    type:'doughnut',
+    data:{labels:['Yo','Adscriptor','Ambos'],datasets:[{data:[yo,ads,amb],backgroundColor:['#378ADD','#639922','#7F77DD'],borderWidth:2,borderColor:'transparent'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false}}}
+  });
+
+  charts['ch-asist-prac'] = new Chart(document.getElementById('ch-asist-prac'), {
+    type:'doughnut',
+    data:{labels:['Presente','Ausente'],datasets:[{data:[presente,ausente],backgroundColor:['#639922','#E24B4A'],borderWidth:2,borderColor:'transparent'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false}}}
+  });
+
+  const labels = clases.map(c=>'C'+c.num);
+  charts['ch-alumnos'] = new Chart(document.getElementById('ch-alumnos'), {
+    type:'bar',
+    data:{labels,datasets:[{label:'Presentes',data:clases.map(c=>c.presentes||0),backgroundColor:'#378ADD',borderWidth:0,borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:TOTAL_ALUMNOS,ticks:{stepSize:5}},x:{ticks:{autoSkip:false,maxRotation:45,font:{size:11}}}}}
+  });
+
+  let acum=0;
+  const horasData = clases.map(c=>{acum+=Math.round((c.min||90)/60*100)/100; return Math.round(acum*10)/10;});
+  charts['ch-horas'] = new Chart(document.getElementById('ch-horas'), {
+    type:'line',
+    data:{labels,datasets:[{label:'Horas',data:horasData,borderColor:'#7F77DD',backgroundColor:'rgba(127,119,221,0.08)',tension:.3,pointRadius:4,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0},x:{ticks:{autoSkip:false,maxRotation:45,font:{size:11}}}}}
+  });
+
+  const temasHtml = clases.map(c=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border)">
+      <span class="tag">C${c.num}</span>
+      <span style="font-size:13px;color:var(--text)">${c.tema}</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--text3)">${c.fecha}</span>
+    </div>
+  `).join('');
+  document.getElementById('lista-temas').innerHTML = temasHtml;
+}
+
+function renderHistorial() {
+  const tbody = document.getElementById('tbody-historial');
+  const empty = document.getElementById('empty-hist');
+  if (clases.length===0){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  const quienBadge = q => q==='yo'?'<span class="badge b-yo">Yo</span>':q==='adscriptor'?'<span class="badge b-ads">Adscriptor</span>':'<span class="badge b-amb">Ambos</span>';
+  const asistBadge = a => a==='presente'?'<span class="badge b-pres">Presente</span>':'<span class="badge b-aus">Ausente</span>';
+  tbody.innerHTML = clases.map(c=>`<tr>
+    <td><strong>${c.num}</strong></td>
+    <td>${c.fecha}</td>
+    <td>${quienBadge(c.quien)}</td>
+    <td>${c.tema}</td>
+    <td>${c.presentes||0} / ${TOTAL_ALUMNOS}</td>
+    <td>${asistBadge(c.asistPrac)}</td>
+    <td>${Math.round((c.min||90)/60*10)/10} hs</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)">${c.obs||'—'}</td>
+  </tr>`).join('');
+}
+
+function cargarAsistenciaSelect() {
+  const sel = document.getElementById('a-sel');
+  sel.innerHTML = '';
+  if (clases.length===0){ document.getElementById('asist-grid').innerHTML=''; document.getElementById('asist-empty').style.display='block'; return; }
+  document.getElementById('asist-empty').style.display='none';
+  clases.forEach(c=>{ const o=document.createElement('option'); o.value=c.num; o.textContent='Clase '+c.num+' — '+c.tema.slice(0,30); sel.appendChild(o); });
+  renderAsistencia();
+}
+
+function renderAsistencia() {
+  const num = parseInt(document.getElementById('a-sel').value);
+  if (!asistencias[num]) asistencias[num]={};
+  const grid = document.getElementById('asist-grid');
+  grid.innerHTML = '';
+  alumnos.forEach(al=>{
+    const est = asistencias[num][al.id] ?? null;
+    const div = document.createElement('div');
+    div.className = 'asist-item';
+    div.innerHTML = `<button class="asist-btn ${est===true?'pres':est===false?'aus':''}" onclick="toggleAsist(${num},${al.id},this)">${est===true?'✓':est===false?'✗':'–'}</button><span class="asist-name">${al.nombre}</span>`;
+    grid.appendChild(div);
+  });
+}
+
+function toggleAsist(num, id, btn) {
+  if(!asistencias[num]) asistencias[num]={};
+  const cur = asistencias[num][id] ?? null;
+  const next = cur===null?true:cur===true?false:null;
+  asistencias[num][id] = next;
+  guardarStorage();
+  btn.className = 'asist-btn '+(next===true?'pres':next===false?'aus':'');
+  btn.textContent = next===true?'✓':next===false?'✗':'–';
+}
+
+function marcarTodos(pres) {
+  const num = parseInt(document.getElementById('a-sel').value);
+  if(!asistencias[num]) asistencias[num]={};
+  alumnos.forEach(al=>asistencias[num][al.id]=pres);
+  guardarStorage();
+  renderAsistencia();
+}
+
+function renderNombres() {
+  const grid = document.getElementById('nombres-grid');
+  grid.innerHTML = alumnos.map(al=>`
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:11px;color:var(--text3);min-width:20px">${al.id}</span>
+      <input type="text" value="${al.nombre}" data-id="${al.id}" style="width:100%;font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+    </div>
+  `).join('');
+}
+
+function guardarNombres() {
+  document.querySelectorAll('#nombres-grid input').forEach(inp=>{
+    const id = parseInt(inp.dataset.id);
+    const al = alumnos.find(a=>a.id===id);
+    if(al) al.nombre = inp.value.trim() || al.nombre;
+  });
+  guardarStorage();
+  const msg = document.getElementById('nombres-msg');
+  msg.style.color='var(--green-d)'; msg.textContent='Nombres guardados.';
+  setTimeout(()=>msg.textContent='',2000);
+}
+
+function cambiarPin() {
+  const actual = document.getElementById('pin-actual').value;
+  const nuevo = document.getElementById('pin-nuevo').value;
+  const msg = document.getElementById('pin-msg');
+  if(actual!==getPin()){msg.style.color='var(--red)';msg.textContent='PIN actual incorrecto.';return;}
+  if(nuevo.length<4){msg.style.color='var(--red)';msg.textContent='El nuevo PIN debe tener al menos 4 dígitos.';return;}
+  localStorage.setItem(PIN_KEY, nuevo);
+  msg.style.color='var(--green-d)';msg.textContent='PIN actualizado.';
+  document.getElementById('pin-actual').value='';
+  document.getElementById('pin-nuevo').value='';
+  setTimeout(()=>msg.textContent='',2000);
+}
+
+function exportarDatos() {
+  const datos = {clases, asistencias, alumnos, exportado: new Date().toISOString()};
+  const blob = new Blob([JSON.stringify(datos,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='practica-docente-isbo-'+new Date().toISOString().split('T')[0]+'.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importarDatos(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const datos = JSON.parse(ev.target.result);
+      if(datos.clases) clases = datos.clases;
+      if(datos.asistencias) asistencias = datos.asistencias;
+      if(datos.alumnos) alumnos = datos.alumnos;
+      guardarStorage();
+      renderDashboard(); renderHistorial();
+      alert('Datos importados correctamente.');
+    } catch(err){ alert('Archivo inválido.'); }
+  };
+  reader.readAsText(file);
+}
+
+cargarDatos();
+</script>
+</body>
+</html>
