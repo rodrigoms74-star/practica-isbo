@@ -536,28 +536,6 @@ async function eliminarClase(num) {
     alert('No se pudo eliminar en Google Sheets. Revisá la implementación de Apps Script.');
   }
 }
-async function guardarClase() {
-const fecha = document.getElementById('r-fecha').value;
-  const num = parseInt(document.getElementById('r-num').value);
-  const quien = document.getElementById('r-quien').value;
-  const min = parseInt(document.getElementById('r-min').value) || 90;
-  const tema = document.getElementById('r-tema').value.trim();
-  const presentes = parseInt(document.getElementById('r-presentes').value) || 0;
-  const asistPrac = document.getElementById('r-asist').value;
-  const obs = document.getElementById('r-obs').value.trim();
-  const msg = document.getElementById('r-msg');
-  if (!fecha || !num || !tema) {
-    msg.style.color = 'var(--red)'; msg.textContent = 'Completá fecha, número y tema.'; return;
-  }
-  const obj = {fecha, num, quien, min, tema, presentes, asistPrac, obs};
-  const idx = clases.findIndex(c => c.num === num);
-  if (idx >= 0) clases[idx] = obj; else clases.push(obj);
-  clases.sort((a,b) => a.num - b.num);
-  guardarStorage();
-  msg.style.color = 'var(--green-d)'; msg.textContent = 'Clase ' + num + ' guardada correctamente.';
-  setTimeout(() => { msg.textContent = ''; limpiarForm(); }, 2000);
-}
-
 document.getElementById('r-fecha').value = new Date().toISOString().split('T')[0];
 
 function renderDashboard() {
