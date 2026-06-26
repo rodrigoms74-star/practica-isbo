@@ -239,7 +239,7 @@
         <table>
           <thead><tr>
             <th>#</th><th>Fecha</th><th>Quién</th><th>Tema</th>
-            <th>Presentes</th><th>Mi asistencia</th><th>Horas</th><th>Observaciones</th>
+            <th>Presentes</th><th>Mi asistencia</th><th>Horas</th><th>Observaciones</th><th>Acciones</th>
           </tr></thead>
           <tbody id="tbody-historial"></tbody>
         </table>
@@ -335,23 +335,68 @@ const TOTAL_CLASES = 32;
 const TOTAL_ALUMNOS = 25;
 const PIN_KEY = 'isbo_pin';
 const DEFAULT_PIN = '1234';
+const API_URL = 'https://script.google.com/macros/s/AKfycbynYKw5fBoKXwxbsjxBHLG6PqFOihWzeShaXjvnLAkKYu0ymWjO_lm7kmSDvHj9tthfYA/exec';
+const USAR_GOOGLE_SHEETS = true;
 
 let modoEditor = false;
 let clases = [], asistencias = {}, alumnos = [];
 let charts = {};
 
-function cargarDatos() {
-  clases = JSON.parse(localStorage.getItem('isbo_clases') || '[]');
+function apiRequest(params = {}) {
+  return new Promise((resolve, reject) => {
+    if (!USAR_GOOGLE_SHEETS || !API_URL) { reject(new Error('API no configurada')); return; }
+    const callbackName = 'isbo_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const query = new URLSearchParams({...params, callback: callbackName}).toString();
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('Tiempo de espera agotado al conectar con Google Sheets.')); }, 15000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = (data) => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error('No se pudo conectar con Google Sheets.')); };
+    script.src = API_URL + '?' + query;
+    document.body.appendChild(script);
+  });
+}
+
+async function cargarDatos() {
+  // Los nombres de estudiantes y asistencia individual se mantienen locales por ahora.
   asistencias = JSON.parse(localStorage.getItem('isbo_asist') || '{}');
   alumnos = JSON.parse(localStorage.getItem('isbo_alumnos') || 'null');
   if (!alumnos) {
     alumnos = Array.from({length: TOTAL_ALUMNOS}, (_, i) => ({id: i+1, nombre: 'Estudiante ' + (i+1)}));
     localStorage.setItem('isbo_alumnos', JSON.stringify(alumnos));
   }
+
+  if (USAR_GOOGLE_SHEETS) {
+    try {
+      const data = await apiRequest({action: 'list'});
+      clases = Array.isArray(data.clases) ? data.clases : (Array.isArray(data) ? data : []);
+      clases = clases.map(c => ({
+        ...c,
+        num: Number(c.num),
+        min: Number(c.min) || 90,
+        presentes: Number(c.presentes) || 0
+      })).filter(c => c.num && c.fecha && c.tema);
+      clases.sort((a,b) => a.num - b.num);
+      localStorage.setItem('isbo_clases_backup', JSON.stringify(clases));
+      return;
+    } catch (err) {
+      console.warn(err);
+      clases = JSON.parse(localStorage.getItem('isbo_clases_backup') || localStorage.getItem('isbo_clases') || '[]');
+      alert('No se pudo cargar desde Google Sheets. Se mostrará una copia local si existe.');
+      return;
+    }
+  }
+
+  clases = JSON.parse(localStorage.getItem('isbo_clases') || '[]');
 }
 
 function guardarStorage() {
-  localStorage.setItem('isbo_clases', JSON.stringify(clases));
+  // Las clases se guardan en Google Sheets. Se conserva una copia local de respaldo.
+  localStorage.setItem('isbo_clases_backup', JSON.stringify(clases));
   localStorage.setItem('isbo_asist', JSON.stringify(asistencias));
   localStorage.setItem('isbo_alumnos', JSON.stringify(alumnos));
 }
@@ -380,9 +425,9 @@ function accederVista() {
   cerrarModal();
 }
 
-function cerrarModal() {
+async function cerrarModal() {
   document.getElementById('modal-login').style.display = 'none';
-  cargarDatos();
+  await cargarDatos();
   renderDashboard();
   renderHistorial();
   document.getElementById('badge-modo').textContent = modoEditor ? 'Editando' : 'Vista';
@@ -420,8 +465,79 @@ function limpiarForm() {
   document.getElementById('r-msg').textContent = '';
 }
 
-function guardarClase() {
+async function guardarClase() {
   const fecha = document.getElementById('r-fecha').value;
+  const num = parseInt(document.getElementById('r-num').value);
+  const quien = document.getElementById('r-quien').value;
+  const min = parseInt(document.getElementById('r-min').value) || 90;
+  const tema = document.getElementById('r-tema').value.trim();
+  const presentes = parseInt(document.getElementById('r-presentes').value) || 0;
+  const asistPrac = document.getElementById('r-asist').value;
+  const obs = document.getElementById('r-obs').value.trim();
+  const msg = document.getElementById('r-msg');
+  if (!fecha || !num || !tema) {
+    msg.style.color = 'var(--red)'; msg.textContent = 'Completá fecha, número y tema.'; return;
+  }
+
+  const obj = {fecha, num, quien, min, tema, presentes, asistPrac, obs};
+  msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando en Google Sheets...';
+
+  try {
+    if (USAR_GOOGLE_SHEETS) {
+      await apiRequest({action: 'save', data: JSON.stringify(obj)});
+    }
+    const idx = clases.findIndex(c => Number(c.num) === Number(num));
+    if (idx >= 0) clases[idx] = obj; else clases.push(obj);
+    clases.sort((a,b) => a.num - b.num);
+    guardarStorage();
+    renderDashboard();
+    renderHistorial();
+    cargarAsistenciaSelect();
+    msg.style.color = 'var(--green-d)'; msg.textContent = 'Clase ' + num + ' guardada correctamente.';
+    setTimeout(() => { msg.textContent = ''; limpiarForm(); }, 1800);
+  } catch (err) {
+    console.error(err);
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'No se pudo guardar en Google Sheets. Revisá la implementación de Apps Script.';
+  }
+}
+
+function editarClase(num) {
+  const c = clases.find(x => Number(x.num) === Number(num));
+  if (!c) return;
+  document.getElementById('r-fecha').value = c.fecha || '';
+  document.getElementById('r-num').value = c.num || '';
+  document.getElementById('r-quien').value = c.quien || 'yo';
+  document.getElementById('r-min').value = c.min || 90;
+  document.getElementById('r-tema').value = c.tema || '';
+  document.getElementById('r-presentes').value = c.presentes || '';
+  document.getElementById('r-asist').value = c.asistPrac || 'presente';
+  document.getElementById('r-obs').value = c.obs || '';
+  const msg = document.getElementById('r-msg');
+  msg.style.color = 'var(--blue-d)';
+  msg.textContent = 'Editando clase ' + num + '. Al guardar, se actualizará el registro.';
+  showTab('registro');
+}
+
+async function eliminarClase(num) {
+  if (!confirm('¿Eliminar la clase ' + num + '? Esta acción no se puede deshacer.')) return;
+  try {
+    if (USAR_GOOGLE_SHEETS) {
+      await apiRequest({action: 'delete', num});
+    }
+    clases = clases.filter(c => Number(c.num) !== Number(num));
+    delete asistencias[num];
+    guardarStorage();
+    renderDashboard();
+    renderHistorial();
+    cargarAsistenciaSelect();
+  } catch (err) {
+    console.error(err);
+    alert('No se pudo eliminar en Google Sheets. Revisá la implementación de Apps Script.');
+  }
+}
+
+document.getElementById('r-fecha').value;
   const num = parseInt(document.getElementById('r-num').value);
   const quien = document.getElementById('r-quien').value;
   const min = parseInt(document.getElementById('r-min').value) || 90;
@@ -524,6 +640,7 @@ function renderHistorial() {
     <td>${asistBadge(c.asistPrac)}</td>
     <td>${Math.round((c.min||90)/60*10)/10} hs</td>
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)">${c.obs||'—'}</td>
+    <td style="white-space:nowrap">${modoEditor ? `<button class="btn btn-sm" onclick="editarClase(${c.num})">✏️</button> <button class="btn btn-sm btn-danger" onclick="eliminarClase(${c.num})">🗑️</button>` : '—'}</td>
   </tr>`).join('');
 }
 
@@ -624,13 +741,13 @@ function importarDatos(e) {
       if(datos.alumnos) alumnos = datos.alumnos;
       guardarStorage();
       renderDashboard(); renderHistorial();
-      alert('Datos importados correctamente.');
+      alert('Datos importados localmente. Para subirlos a Google Sheets, guardá cada clase desde Registrar clase.');
     } catch(err){ alert('Archivo inválido.'); }
   };
   reader.readAsText(file);
 }
 
-cargarDatos();
+cargarDatos().then(() => { renderDashboard(); renderHistorial(); });
 </script>
 </body>
 </html>
