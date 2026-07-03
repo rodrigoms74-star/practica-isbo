@@ -274,7 +274,7 @@
             <option value="ausente">Ausente sin justificar</option>
           </select>
         </div>
-        <div class="field"><label>Estudiantes presentes (de 25)</label><input type="number" id="r-presentes" min="0" max="25" placeholder="0–25"></div>
+        <div class="field"><label id="presentes-label">Estudiantes presentes (de 33)</label><input type="number" id="r-presentes" min="0" max="33" placeholder="0–33"></div>
       </div>
       <div class="field" style="margin-bottom:12px"><label>Tema dictado</label><input type="text" id="r-tema" placeholder="Ej: Introducción a árboles de decisión"></div>
       <div class="field" style="margin-bottom:16px"><label>Observaciones del adscriptor</label><textarea id="r-obs" placeholder="Comentarios, devoluciones, sugerencias..."></textarea></div>
@@ -332,7 +332,7 @@
 
 <script>
 const TOTAL_CLASES = 32;
-const TOTAL_ALUMNOS = 25;
+let TOTAL_ALUMNOS = 33;
 const PIN_KEY = 'isbo_pin';
 const DEFAULT_PIN = '1234';
 const API_URL = 'https://script.google.com/macros/s/AKfycbynYKw5fBoKXwxbsjxBHLG6PqFOihWzeShaXjvnLAkKYu0ymWjO_lm7kmSDvHj9tthfYA/exec';
@@ -361,18 +361,43 @@ function apiRequest(params = {}) {
   });
 }
 
+function actualizarTotalAlumnosUI() {
+  const inp = document.getElementById('r-presentes');
+  if (inp) {
+    inp.max = TOTAL_ALUMNOS;
+    inp.placeholder = '0–' + TOTAL_ALUMNOS;
+  }
+  const lbl = document.getElementById('presentes-label');
+  if (lbl) lbl.textContent = 'Estudiantes presentes (de ' + TOTAL_ALUMNOS + ')';
+}
+
 async function cargarDatos() {
-  // Los nombres de estudiantes y asistencia individual se mantienen locales por ahora.
+  // La asistencia individual sigue guardándose localmente.
   asistencias = JSON.parse(localStorage.getItem('isbo_asist') || '{}');
+
+  // Respaldo local por si no carga Google Sheets.
   alumnos = JSON.parse(localStorage.getItem('isbo_alumnos') || 'null');
   if (!alumnos) {
-    alumnos = Array.from({length: TOTAL_ALUMNOS}, (_, i) => ({id: i+1, nombre: 'Estudiante ' + (i+1)}));
-    localStorage.setItem('isbo_alumnos', JSON.stringify(alumnos));
+    alumnos = Array.from({length: TOTAL_ALUMNOS}, (_, i) => ({id: i + 1, nombre: 'Estudiante ' + (i + 1)}));
   }
 
   if (USAR_GOOGLE_SHEETS) {
     try {
       const data = await apiRequest({action: 'list'});
+
+      if (Array.isArray(data.alumnos) && data.alumnos.length > 0) {
+        alumnos = data.alumnos
+          .filter(a => a && (a.nombre || a.num))
+          .map((a, i) => ({
+            id: Number(a.id ?? a.num ?? (i + 1)),
+            nombre: String(a.nombre || ('Estudiante ' + (i + 1))).trim()
+          }));
+        TOTAL_ALUMNOS = alumnos.length || TOTAL_ALUMNOS;
+        localStorage.setItem('isbo_alumnos', JSON.stringify(alumnos));
+      }
+
+      actualizarTotalAlumnosUI();
+
       clases = Array.isArray(data.clases) ? data.clases : (Array.isArray(data) ? data : []);
       clases = clases.map(c => ({
         ...c,
@@ -386,12 +411,14 @@ async function cargarDatos() {
     } catch (err) {
       console.warn(err);
       clases = JSON.parse(localStorage.getItem('isbo_clases_backup') || localStorage.getItem('isbo_clases') || '[]');
+      actualizarTotalAlumnosUI();
       alert('No se pudo cargar desde Google Sheets. Se mostrará una copia local si existe.');
       return;
     }
   }
 
   clases = JSON.parse(localStorage.getItem('isbo_clases') || '[]');
+  actualizarTotalAlumnosUI();
 }
 
 function guardarStorage() {
