@@ -358,7 +358,7 @@ function apiRequest(params = {}) {
       delete window[callbackName];
       if (script.parentNode) script.parentNode.removeChild(script);
     }
-    window[callbackName] = (data) => { cleanup(); resolve(data); };
+    window.prueba = (data) => { clearTimeout(timeout); resolve(data); };
     script.onerror = () => { cleanup(); reject(new Error('No se pudo conectar con Google Sheets.')); };
     script.src = API_URL + '?' + query + '&_=' + Date.now();
     document.body.appendChild(script);
