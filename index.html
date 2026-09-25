@@ -360,7 +360,7 @@ function apiRequest(params = {}) {
     }
     window[callbackName] = (data) => { cleanup(); resolve(data); };
     script.onerror = () => { cleanup(); reject(new Error('No se pudo conectar con Google Sheets.')); };
-    script.src = API_URL + '?' + query;
+    script.src = API_URL + '?' + query + '&_=' + Date.now();
     document.body.appendChild(script);
   });
 }
